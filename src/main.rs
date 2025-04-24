@@ -72,7 +72,7 @@ fn main() {
     match command {
         // Convert image to different format
         Command::Convert { format } => {
-            let output = match output_path.is_dir() {
+            let output = match output_path.is_dir() || output_path.as_os_str().is_empty() {
                 true => {
                     let output_file_name = input_file_name.with_extension(format.to_string());
                     output_path.with_file_name(output_file_name)
@@ -317,8 +317,17 @@ fn main() {
                     let (text_w, text_h) = text_size(scale, &font, &text);
                     let diagonal = ((text_w.pow(2) + text_h.pow(2)) as f32).sqrt().ceil() as u32;
                     let mut watermark = ImageBuffer::<Rgba<u8>, Vec<u8>>::new(diagonal, diagonal);
-
-                    draw_text_mut(&mut watermark, color, 0, 0, scale, &font, &text);
+                    let center_x = diagonal / 2 - text_w / 2;
+                    let center_y = diagonal / 2 - text_h / 2;
+                    draw_text_mut(
+                        &mut watermark,
+                        color,
+                        center_x as i32,
+                        center_y as i32,
+                        scale,
+                        &font,
+                        &text,
+                    );
                     watermark
                 }
                 // Load image watermark
@@ -356,10 +365,21 @@ fn main() {
             if let Position::FlatLay(spacing) = position {
                 for y in (0..height).step_by(spacing) {
                     for x in (0..width).step_by(spacing) {
-                        let x = x as i64 - ((w / 2) as i64);
-                        overlay(&mut img, &rotated, x, y as i64);
+                        overlay(&mut img, &rotated, x as i64, y as i64);
                     }
                 }
+
+                // Save the processed image
+                let output = match output_path.is_dir() || output_path.as_os_str().is_empty() {
+                    true => output_path.with_file_name(input_file_name),
+                    false => output_path,
+                };
+
+                if let Err(e) = img.save(output) {
+                    eprintln!("Failed to save image: {}", e);
+                    return;
+                }
+
                 return;
             }
 
@@ -383,7 +403,7 @@ fn main() {
     }
 
     // Save the processed image
-    let output = match output_path.is_dir() {
+    let output = match output_path.is_dir() || output_path.as_os_str().is_empty() {
         true => output_path.with_file_name(input_file_name),
         false => output_path,
     };
